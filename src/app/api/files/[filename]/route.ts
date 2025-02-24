@@ -3,9 +3,10 @@ import fs from "fs"
 import path from "path"
 import { uploadsDir } from "@/lib/file-utils"
 
-export async function GET(request: Request, { params }: { params: { filename: string } }) {
-  const filename = params.filename
-  const filePath = path.join(uploadsDir, filename)
+export async function GET(request: Request) {
+    const { searchParams } = new URL(request.url)
+    const filename = searchParams.get('filename')
+    const filePath = path.join(uploadsDir, filename || '')
 
   if (!fs.existsSync(filePath)) {
     return NextResponse.json({ error: "File not found" }, { status: 404 })
@@ -22,9 +23,10 @@ export async function GET(request: Request, { params }: { params: { filename: st
   })
 }
 
-export async function DELETE(request: Request, { params }: { params: { filename: string } }) {
-  const filename = params.filename
-  const filePath = path.join(uploadsDir, filename)
+export async function DELETE(request: Request) {
+    const { searchParams } = new URL(request.url)
+    const filename = searchParams.get('filename')
+    const filePath = path.join(uploadsDir, filename || '')
 
   if (!fs.existsSync(filePath)) {
     return NextResponse.json({ error: "File not found" }, { status: 404 })
