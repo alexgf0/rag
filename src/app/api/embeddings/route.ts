@@ -55,12 +55,12 @@ export async function POST(request: Request) {
     })
 
     const newEmbeddings = await EmbeddingUtils.create(
-        {
-            filename: body.filename,
-            content: contents,
-            model: model_response.model,
-            embeddings: model_response.embeddings
-        }
+      {
+        filename: body.filename,
+        content: contents,
+        model: model_response.model,
+        embeddings: model_response.embeddings
+      }
     )
 
     if (newEmbeddings) {

@@ -20,6 +20,7 @@ export async function ensureFileExists(filename: string): Promise<boolean> {
 }
 
 
+
 export async function extractFileContents(filename: string): Promise<string> {
   const filePath = uploadsDir + "/"+ filename
   try {
@@ -30,7 +31,17 @@ export async function extractFileContents(filename: string): Promise<string> {
     const data = await pdfParse(dataBuffer);
     
     // Get the text content
-    const text: string = data.text;
+    let text: string = data.text;
+    
+    // Sanitize the text:
+    // 1. Remove null bytes (0x00)
+    text = text.replace(/\0/g, '');
+    
+    // 2. Replace other potentially problematic characters
+    text = text.replace(/[\uFFFD\uFFFE\uFFFF]/g, '');
+    
+    // 3. Ensure valid UTF-8 by replacing invalid characters with spaces
+    text = text.replace(/[^\x20-\x7E\x0A\x0D\u00A0-\uFFFC]/g, ' ');
     
     return text;
   } catch (error) {

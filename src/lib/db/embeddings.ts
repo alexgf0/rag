@@ -82,8 +82,13 @@ export class EmbeddingUtils {
       }
     }
     
-    static async delete(id: number): Promise<boolean | undefined> {
-      const result: QueryResult = await pool.query("DELETE FROM embedding_vector WHERE id = $1", [id])
+    static async delete(filter: EmbeddingFilter): Promise<boolean | undefined> {
+      const result: QueryResult = await pool.query(
+        "DELETE FROM embedding_vector" +
+        ' ($1::int IS null OR id = $1)' +
+        ' AND ($2::text IS null OR filename = $2)',
+        [filter.id, filter.filename])
+
       if (result.rowCount)
           return result.rowCount > 0
     }

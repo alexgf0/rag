@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import fs from "fs"
 import path from "path"
 import { uploadsDir } from "@/lib/file-utils"
+import { EmbeddingUtils } from "@/lib/db/embeddings"
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
@@ -37,6 +38,8 @@ export async function DELETE(
     return NextResponse.json({ error: "File not found" }, { status: 404 })
   }
 
+  EmbeddingUtils.delete({filename: filename})
+  
   try {
     fs.unlinkSync(filePath)
     return NextResponse.json({ message: "File deleted successfully" }, { status: 200 })
