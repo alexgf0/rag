@@ -23,10 +23,15 @@ export async function GET(request: Request) {
   })
 }
 
-export async function DELETE(request: Request) {
-    const { searchParams } = new URL(request.url)
-    const filename = searchParams.get('filename')
-    const filePath = path.join(uploadsDir, filename || '')
+export async function DELETE(
+  request: Request,
+  { params }: { params: { filename: string } }
+) {
+  const filename = await (async () => {
+    const tmp = await params
+    return tmp.filename
+  })()
+  const filePath = path.join(uploadsDir, filename || '')
 
   if (!fs.existsSync(filePath)) {
     return NextResponse.json({ error: "File not found" }, { status: 404 })

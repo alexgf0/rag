@@ -4,4 +4,9 @@ const nextConfig: NextConfig = {
   /* config options here */
 };
 
+module.exports = {
+    experimental: {
+    serverComponentsExternalPackages: ['pdf-parse'],
+  },
+};
 export default nextConfig;
