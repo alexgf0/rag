@@ -5,13 +5,17 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import ollama from 'ollama/browser'
+import { Eye, EyeOff } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
 
 type Message = {
   id: number
   text: string
   sender: "user" | "system"
   complete?: boolean
+  hasThinkContent?: boolean
+  originalText?: string
 }
 
 export default function ChatInterface() {
@@ -20,6 +24,7 @@ export default function ChatInterface() {
   ])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [showThinking, setShowThinking] = useState(true)
   const messageEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
@@ -36,6 +41,50 @@ export default function ChatInterface() {
       role: msg.sender === "user" ? "user" : "assistant",
       content: msg.text
     }))
+  }
+
+  // Function to process and extract think sections from text
+  const processThinkSections = (text: string): { 
+    processedText: string, 
+    hasThinkContent: boolean,
+    originalText: string 
+  } => {
+    const originalText = text
+    const thinkRegex = /<think>([\s\S]*?)<\/think>/g
+    
+    // Check if there are think tags
+    const hasThinkContent = thinkRegex.test(text)
+    
+    if (!hasThinkContent) {
+      return { processedText: text, hasThinkContent, originalText }
+    }
+    
+    // Reset regex state
+    thinkRegex.lastIndex = 0
+    
+    // For compressed view, we'll remove the think sections completely
+    const processedText = text.replace(thinkRegex, '')
+      // Clean up any double newlines left by the removal
+      .replace(/\n\s*\n\s*\n/g, '\n\n')
+      .trim()
+    
+    return { processedText, hasThinkContent, originalText }
+  }
+
+  // Toggle thinking visibility for all messages
+  const toggleThinking = () => {
+    setShowThinking(prev => !prev)
+    setMessages(prevMessages => 
+      prevMessages.map(msg => {
+        if (msg.hasThinkContent) {
+          return {
+            ...msg,
+            text: !showThinking ? msg.originalText! : processThinkSections(msg.originalText!).processedText
+          }
+        }
+        return msg
+      })
+    )
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -63,26 +112,95 @@ export default function ChatInterface() {
         const conversationHistory = transformMessagesForOllama(messages)
         conversationHistory.push({ role: "user", content: input.trim() })
 
-        const response = await ollama.chat({
-          model: 'deepseek-r1:1.5b',
-          messages: conversationHistory,
-          stream: true
+        // Call the API endpoint with streaming response
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ messages: conversationHistory }),
         })
 
-        for await (const part of response) {
-          const newContent = part.message.content
-          setMessages(prev => prev.map(msg => 
-            msg.id === aiMessageId 
-              ? { ...msg, text: msg.text + newContent }
-              : msg
-          ))
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
         }
 
-        setMessages(prev => prev.map(msg => 
-          msg.id === aiMessageId 
-            ? { ...msg, complete: true }
-            : msg
-        ))
+        const reader = response.body?.getReader()
+        if (!reader) {
+          throw new Error('Response body is null')
+        }
+
+        // Process the incoming stream chunks
+        const decoder = new TextDecoder()
+        let buffer = ''
+        let fullResponse = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+
+          if (done) break
+
+          // Decode the chunk and add to buffer
+          buffer += decoder.decode(value, { stream: true })
+          
+          // Process complete JSON lines from the buffer
+          let newlineIndex
+          while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+            const line = buffer.slice(0, newlineIndex)
+            buffer = buffer.slice(newlineIndex + 1)
+            
+            if (line.trim()) {
+              try {
+                const data = JSON.parse(line)
+                
+                if (data.error) {
+                  throw new Error(data.error)
+                }
+                
+                // Update the full response and the displayed message
+                if (data.content) {
+                  fullResponse += data.content
+                  
+                  // Check if we need to process think sections
+                  const { processedText, hasThinkContent } = processThinkSections(fullResponse)
+                  
+                  // Update the AI message with new content
+                  setMessages(prev => prev.map(msg => 
+                    msg.id === aiMessageId 
+                      ? { 
+                          ...msg, 
+                          text: showThinking ? fullResponse : processedText,
+                          hasThinkContent,
+                          originalText: fullResponse
+                        }
+                      : msg
+                  ))
+                }
+                
+                // Mark message as complete when done
+                if (data.done) {
+                  // Final processing of the complete response
+                  const { processedText, hasThinkContent } = processThinkSections(fullResponse)
+                  
+                  setMessages(prev => prev.map(msg => 
+                    msg.id === aiMessageId 
+                      ? { 
+                          ...msg, 
+                          text: showThinking ? fullResponse : processedText,
+                          complete: true,
+                          hasThinkContent,
+                          originalText: fullResponse
+                        }
+                      : msg
+                  ))
+                }
+              } catch (e) {
+                console.error('Error parsing stream:', e, line)
+              }
+            }
+          }
+        }
+
       } catch (error) {
         console.error('Error:', error)
         setMessages(prev => prev.map(msg => 
@@ -96,27 +214,46 @@ export default function ChatInterface() {
     }
   }
 
+  // Render individual message with think toggle if applicable
+  const renderMessage = (message: Message) => {
+    return (
+      <div key={message.id} className={`mb-4 ${message.sender === "user" ? "text-right" : "text-left"}`}>
+        <span
+          className={`inline-block p-2 rounded-lg ${
+            message.sender === "user" 
+              ? "bg-primary text-primary-foreground" 
+              : "bg-secondary text-secondary-foreground"
+          } ${!message.complete ? "animate-pulse" : ""}`}
+        >
+          {message.text || "..."}
+        </span>
+      </div>
+    )
+  }
+
   return (
     <Card className="flex flex-col h-full">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Chat with AI</CardTitle>
+        <div className="flex items-center space-x-2">
+          <Switch 
+            id="thinking-mode" 
+            checked={showThinking} 
+            onCheckedChange={toggleThinking} 
+          />
+          <Label htmlFor="thinking-mode" className="flex items-center cursor-pointer">
+            {showThinking ? (
+              <><Eye className="h-4 w-4 mr-1" /> Show Thinking</>
+            ) : (
+              <><EyeOff className="h-4 w-4 mr-1" /> Hide Thinking</>
+            )}
+          </Label>
+        </div>
       </CardHeader>
-      <CardContent className="flex-1">
-        <ScrollArea className="h-[calc(100vh-200px)]">
+      <CardContent className="flex-1 pr-3">
+        <ScrollArea className="h-[calc(100vh-200px)] pr-4">
           <div className="flex flex-col space-y-4">
-            {messages.map((m) => (
-              <div key={m.id} className={`mb-4 ${m.sender === "user" ? "text-right" : "text-left"}`}>
-                <span
-                  className={`inline-block p-2 rounded-lg ${
-                    m.sender === "user" 
-                      ? "bg-primary text-primary-foreground" 
-                      : "bg-secondary text-secondary-foreground"
-                  } ${!m.complete ? "animate-pulse" : ""}`}
-                >
-                  {m.text || "..."}
-                </span>
-              </div>
-            ))}
+            {messages.map(renderMessage)}
             <div ref={messageEndRef} />
           </div>
         </ScrollArea>
