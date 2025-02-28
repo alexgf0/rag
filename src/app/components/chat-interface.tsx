@@ -32,18 +32,43 @@ export default function ChatInterface() {
   const [showThinking, setShowThinking] = useState(true)
   const [includeFiles, setIncludeFiles] = useState(false)
   const [textareaHeight, setTextareaHeight] = useState(40) // Default height in pixels
+  const [isInitialized, setIsInitialized] = useState(false) // Track initial render
   const messageEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
-  // Scroll to bottom of messages
-  const scrollToBottom = () => {
-    messageEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  // Scroll to bottom of messages - forced on first render
+  const scrollToBottom = (force = false) => {
+    if (messageEndRef.current) {
+      messageEndRef.current.scrollIntoView({ 
+        behavior: force ? "auto" : "smooth",
+        block: "end"
+      })
+    }
   }
 
+  // Handle initial layout and scroll
   useEffect(() => {
-    scrollToBottom()
-  }, [messages])
+    // Set initial layout
+    const initializeLayout = () => {
+      if (!isInitialized) {
+        // Force immediate scroll on first render
+        setTimeout(() => {
+          scrollToBottom(true)
+          setIsInitialized(true)
+        }, 100) // Short delay to ensure DOM is ready
+      }
+    }
+
+    initializeLayout()
+  }, [isInitialized])
+
+  // Handle scroll when messages change
+  useEffect(() => {
+    if (isInitialized) {
+      scrollToBottom()
+    }
+  }, [messages, isInitialized])
 
   // Function to auto-resize the textarea and adjust the chat area
   const autoResizeTextarea = () => {
@@ -80,6 +105,9 @@ export default function ChatInterface() {
     setInput("")
     setIsLoading(false)
     setTextareaHeight(40) // Reset textarea height
+    
+    // Ensure scroll position is reset properly
+    setTimeout(() => scrollToBottom(true), 50)
   }
 
   // Function to process and extract think sections from text
@@ -367,9 +395,9 @@ export default function ChatInterface() {
           className="pr-4"
           style={{ height: chatAreaHeight }}
         >
-          <div className="flex flex-col space-y-4">
+          <div className="flex flex-col space-y-4 min-h-[50px]">
             {messages.map(renderMessage)}
-            <div ref={messageEndRef} />
+            <div ref={messageEndRef} className="h-1" />
           </div>
         </ScrollArea>
       </CardContent>

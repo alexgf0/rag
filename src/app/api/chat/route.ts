@@ -8,11 +8,18 @@ export async function POST(request: NextRequest) {
     const { messages, reset = false, include_files = false } = body
 
     if (include_files) {
-        // get the query embeddings and compare against what we already have to form the context.
-        getRelevantContent("mxbai-embed-large", messages[messages.length-1].content)
+        const contexts = await getRelevantContent("mxbai-embed-large", messages[messages.length-1].content)
+
+        let fullContext = ""
+
+        for (let i=0; i < contexts.length; i++) {
+            fullContext = fullContext + "\n\n" + contexts[i].content
+        }
+
+        if (messages.length > 0) {
+            messages[messages.length-1].content = 'With the following context: \n' + fullContext + '\n\n Can you response the following question: ' + messages[messages.length-1].content
+        }
     }
-    
-    console.log("messages: ", messages)
 
     // Handle reset request
     if (reset) {
@@ -23,7 +30,7 @@ export async function POST(request: NextRequest) {
     const encoder = new TextEncoder()
     const stream = new TransformStream()
     const writer = stream.writable.getWriter()
-    
+
     // Start processing with Ollama
     const ollamaPromise = ollama.chat({
       model: 'deepseek-r1:1.5b',
