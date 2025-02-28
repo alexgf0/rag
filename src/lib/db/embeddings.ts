@@ -116,6 +116,7 @@ export class EmbeddingUtils {
         ORDER BY embeddings <=> $1
         LIMIT $3
     `, [vectorString, model, limit]);
+    console.log("result: ", result)
 
       return result.rows
     }

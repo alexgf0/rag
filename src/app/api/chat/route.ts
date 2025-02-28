@@ -9,9 +9,11 @@ export async function POST(request: NextRequest) {
 
     if (include_files) {
         // get the query embeddings and compare against what we already have to form the context.
-        getRelevantContent("deepseek-r1:1.5b", messages[messages.length-1].content)
+        getRelevantContent("mxbai-embed-large", messages[messages.length-1].content)
     }
     
+    console.log("messages: ", messages)
+
     // Handle reset request
     if (reset) {
       return NextResponse.json({ status: 'reset' })

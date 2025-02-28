@@ -20,8 +20,6 @@ export async function ensureFileExists(filename: string): Promise<boolean> {
   })
 }
 
-
-
 export async function extractFileContents(filename: string): Promise<string[]> {
   const filePath = uploadsDir + "/"+ filename
   try {
@@ -47,7 +45,7 @@ export async function extractFileContents(filename: string): Promise<string[]> {
     // 4. Swap multiple spaces for one space
     text = normalizeSpaces(text)
     
-    return splitStringByLength(text, 2048)
+    return splitStringByLength(text, 8192)
   } catch (error) {
       throw new Error(`Failed to extract PDF text: ${error}`);
   }

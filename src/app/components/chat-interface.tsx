@@ -1,13 +1,13 @@
 "use client"
 import type React from "react"
 import { useState, useRef, useEffect } from "react"
-import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Eye, EyeOff, FileCheck, FileX, SquarePen } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 
 type Message = {
   id: number
@@ -31,8 +31,12 @@ export default function ChatInterface() {
   const [isLoading, setIsLoading] = useState(false)
   const [showThinking, setShowThinking] = useState(true)
   const [includeFiles, setIncludeFiles] = useState(false)
+  const [textareaHeight, setTextareaHeight] = useState(40) // Default height in pixels
   const messageEndRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
 
+  // Scroll to bottom of messages
   const scrollToBottom = () => {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
@@ -40,6 +44,27 @@ export default function ChatInterface() {
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  // Function to auto-resize the textarea and adjust the chat area
+  const autoResizeTextarea = () => {
+    const textarea = textareaRef.current
+    if (textarea) {
+      // Reset height to auto to properly calculate the new height
+      textarea.style.height = 'auto'
+      
+      // Calculate new height (capped at maximum)
+      const newHeight = Math.min(Math.max(textarea.scrollHeight, 40), 200)
+      textarea.style.height = `${newHeight}px`
+      
+      // Update height state to resize the chat area
+      setTextareaHeight(newHeight)
+    }
+  }
+
+  // Resize the textarea when input changes
+  useEffect(() => {
+    autoResizeTextarea()
+  }, [input])
 
   const transformMessagesForOllama = (messages: Message[]) => {
     // Skip the welcome message and transform remaining messages
@@ -54,6 +79,7 @@ export default function ChatInterface() {
     setMessages([initialWelcomeMessage as Message])
     setInput("")
     setIsLoading(false)
+    setTextareaHeight(40) // Reset textarea height
   }
 
   // Function to process and extract think sections from text
@@ -100,6 +126,14 @@ export default function ChatInterface() {
     )
   }
 
+  // Handle key press for submitting with Enter (but allow Shift+Enter for new lines)
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSubmit(e as unknown as React.FormEvent)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (input.trim() && !isLoading) {
@@ -119,6 +153,12 @@ export default function ChatInterface() {
       }])
       setInput("")
       setIsLoading(true)
+      
+      // Reset textarea height
+      setTextareaHeight(40)
+      if (textareaRef.current) {
+        textareaRef.current.style.height = '40px'
+      }
 
       try {
         // Get the current conversation history and add the new message
@@ -270,6 +310,9 @@ export default function ChatInterface() {
     )
   }
 
+  // Calculate dynamic height for chat area that shrinks as textarea grows
+  const chatAreaHeight = `calc(100vh - ${textareaHeight + 160}px)`
+
   return (
     <Card className="flex flex-col h-full">
       <CardHeader className="flex flex-col gap-1">
@@ -303,11 +346,11 @@ export default function ChatInterface() {
           </Button>
           <div className="flex gap-3">
             <Switch 
-              id="thinking-mode" 
+              id="include-files" 
               checked={includeFiles} 
               onCheckedChange={setIncludeFiles} 
             />
-            <Label htmlFor="thinking-mode" className="flex items-center cursor-pointer gap-2">
+            <Label htmlFor="include-files" className="flex items-center cursor-pointer gap-2">
               {includeFiles ? (
                 <><FileCheck className="h-4 w-4 mr-1" /> Include files</>
               ) : (
@@ -317,22 +360,38 @@ export default function ChatInterface() {
           </div>
         </div>
       </CardHeader>
-      <CardContent className="flex-1 pr-3">
-        <ScrollArea className="h-[calc(100vh-200px)] pr-4">
+      <CardContent className="flex-1 pr-3 overflow-hidden">
+        {/* Use dynamic height that adjusts based on textarea size */}
+        <ScrollArea 
+          ref={scrollAreaRef}
+          className="pr-4"
+          style={{ height: chatAreaHeight }}
+        >
           <div className="flex flex-col space-y-4">
             {messages.map(renderMessage)}
             <div ref={messageEndRef} />
           </div>
         </ScrollArea>
       </CardContent>
-      <CardFooter>
-        <form onSubmit={handleSubmit} className="flex w-full space-x-2">
-          <Input 
-            value={input} 
-            placeholder="Type a message..." 
-            onChange={(e) => setInput(e.target.value)}
-            disabled={isLoading}
-          />
+      <CardFooter className="pt-2">
+        <form onSubmit={handleSubmit} className="flex w-full space-x-2 items-end">
+          <div className="relative flex-1">
+            <Textarea
+              ref={textareaRef}
+              value={input}
+              placeholder="Type a message..."
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isLoading}
+              className="resize-none pr-12 py-2"
+              style={{ 
+                height: `${textareaHeight}px`,
+                minHeight: '40px',
+                maxHeight: '200px',
+                overflowY: textareaHeight >= 200 ? 'auto' : 'hidden'
+              }}
+            />
+          </div>
           <Button type="submit" disabled={isLoading}>
             {isLoading ? "Thinking..." : "Send"}
           </Button>
