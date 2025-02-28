@@ -1,6 +1,7 @@
 import fs from "fs"
 import path from "path"
 import pdfParse from 'pdf-parse';
+import { normalizeSpaces, splitStringByLength } from "./utils";
 
 export const uploadsDir = path.join(process.cwd(), "/public/uploads")
 
@@ -21,7 +22,7 @@ export async function ensureFileExists(filename: string): Promise<boolean> {
 
 
 
-export async function extractFileContents(filename: string): Promise<string> {
+export async function extractFileContents(filename: string): Promise<string[]> {
   const filePath = uploadsDir + "/"+ filename
   try {
     // Read the PDF file as a buffer
@@ -40,10 +41,13 @@ export async function extractFileContents(filename: string): Promise<string> {
     // 2. Replace other potentially problematic characters
     text = text.replace(/[\uFFFD\uFFFE\uFFFF]/g, '');
     
-    // 3. Ensure valid UTF-8 by replacing invalid characters with spaces
-    text = text.replace(/[^\x20-\x7E\x0A\x0D\u00A0-\uFFFC]/g, ' ');
+    // 3. Ensure valid UTF-8 by replacing invalid characters
+    text = text.replace(/[^\x20-\x7E\x0A\x0D\u00A0-\uFFFC]/g, '');
+
+    // 4. Swap multiple spaces for one space
+    text = normalizeSpaces(text)
     
-    return text;
+    return splitStringByLength(text, 2048)
   } catch (error) {
       throw new Error(`Failed to extract PDF text: ${error}`);
   }

@@ -5,6 +5,7 @@ import { pool } from "./db"
 export interface EmbeddingVector {
   id?: number
   filename: string
+  idx: number
   content: string
   model: string
   embeddings: number[]
@@ -21,12 +22,12 @@ export class EmbeddingUtils {
    * Create a new embedding record in the database
    */
   static async create(embeddingInfo: EmbeddingVector): Promise<EmbeddingVector | undefined> {
-      const { filename, content, model, embeddings } = embeddingInfo
+      const { filename, idx, content, model, embeddings } = embeddingInfo
       const vectorString = `[${embeddings.join(',')}]`; // e.g., '[0.1,0.2,0.3]'
 
       const result: QueryResult = await pool.query(
-        "INSERT INTO embedding_vector (id, filename, content, model, embeddings) VALUES (DEFAULT, $1, $2, $3, $4) RETURNING *",
-        [filename, content, model, vectorString],
+        "INSERT INTO embedding_vector (id, filename, idx, content, model, embeddings) VALUES (DEFAULT, $1, $2, $3, $4, $5) RETURNING *",
+        [filename, idx, content, model, vectorString],
       )
     
       if (result.rows.length === 0) {
@@ -37,6 +38,7 @@ export class EmbeddingUtils {
       return {
         id: row.id,
         filename: row.filename,
+        idx: row.idx,
         content: row.content,
         model: row.model,
         embeddings: row.embeddings,
@@ -57,6 +59,7 @@ export class EmbeddingUtils {
       return (row ? {
         id: row.id,
         filename: row.filename,
+        idx: row.idx,
         content: row.content,
         model: row.model,
         embeddings: row.embeddings,
@@ -64,10 +67,10 @@ export class EmbeddingUtils {
     }
 
     static async update(embeddingInfo: EmbeddingVector): Promise<EmbeddingVector | undefined> {
-      const { id, filename, content, model, embeddings } = embeddingInfo
+      const { id, filename, idx, content, model, embeddings } = embeddingInfo
       const result: QueryResult = await pool.query(
-        "UPDATE embedding_vector SET filename= $2, content = $3, model = $4, embeddings = $5 WHERE id = $1 RETURNING *",
-        [id, filename, content, model, embeddings],
+        "UPDATE embedding_vector SET filename = $2, idx = $3, content = $4, model = $5, embeddings = $6 WHERE id = $1 RETURNING *",
+        [id, filename, idx, content, model, embeddings],
       )
     
       if (result.rows.length === 0) {
@@ -78,6 +81,7 @@ export class EmbeddingUtils {
       return {
         id: row.id,
         filename: row.filename,
+        idx: row.idx,
         content: row.content,
         model: row.model,
         embeddings: row.embeddings,

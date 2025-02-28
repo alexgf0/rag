@@ -49,22 +49,28 @@ export async function POST(request: Request) {
     }
     const contents = await extractFileContents(body.filename)
 
-    const model_response = await ollama.embed({
-        model: "deepseek-r1:1.5b",
-        input: contents
-    })
+    const newEmbeddings = []
 
-    const newEmbeddings = await EmbeddingUtils.create(
-      {
-        filename: body.filename,
-        content: contents,
-        model: model_response.model,
-        embeddings: model_response.embeddings[0]
-      }
-    )
+    for (let i= 0; i < contents.length; i++) {
+      const model_response = await ollama.embed({
+          model: "deepseek-r1:1.5b",
+          input: contents[i]
+      })
 
-    if (newEmbeddings) {
-        return NextResponse.json(newEmbeddings)
+      const newEmbedding = await EmbeddingUtils.create(
+        {
+          filename: body.filename,
+          content: contents[i],
+          idx: i,
+          model: model_response.model,
+          embeddings: model_response.embeddings[0]
+        }
+      )
+      newEmbeddings.push(newEmbedding)
+    }
+
+    if (newEmbeddings.length > 0) {
+      return NextResponse.json(newEmbeddings[0])
     }
 
     return NextResponse.json({ message: "could not create embeddings" }, { status: 500 })
