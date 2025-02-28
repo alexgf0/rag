@@ -50,8 +50,8 @@ export default function FileUpload({ onUploadComplete }: FileUploadProps) {
   }
 
   return (
-    <div className="mb-4 space-y-2">
-      <Input type="file" onChange={handleFileChange} className="mb-2" />
+    <div className="mb-4 flex items-center gap-4">
+      <Input type="file" onChange={handleFileChange} />
       <Button onClick={handleUpload} disabled={!file}>
         Upload
       </Button>

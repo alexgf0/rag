@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Eye, EyeOff, SquarePen } from "lucide-react"
+import { Eye, EyeOff, FileCheck, FileX, SquarePen } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 
@@ -30,6 +30,7 @@ export default function ChatInterface() {
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [showThinking, setShowThinking] = useState(true)
+  const [includeFiles, setIncludeFiles] = useState(false)
   const messageEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
@@ -132,7 +133,8 @@ export default function ChatInterface() {
           },
           body: JSON.stringify({ 
             messages: conversationHistory,
-            reset: false // Indicate this is not a reset request
+            reset: false, // Indicate this is not a reset request
+            include_files: includeFiles
           }),
         })
 
@@ -283,12 +285,12 @@ export default function ChatInterface() {
               {showThinking ? (
                 <><Eye className="h-4 w-4 mr-1" /> Show Thinking</>
               ) : (
-                <><EyeOff className="h-4 w-4 mr-1" /> Hide Thinking</>
+                <><EyeOff className="h-4 w-4 mr-1" /> Show Thinking</>
               )}
             </Label>
           </div>
         </div>
-        <div>
+        <div className="flex justify-between items-center">
           <Button 
             variant="outline" 
             size="sm" 
@@ -299,6 +301,20 @@ export default function ChatInterface() {
             <SquarePen className="h-4 w-4" />
             New Chat
           </Button>
+          <div className="flex gap-3">
+            <Switch 
+              id="thinking-mode" 
+              checked={includeFiles} 
+              onCheckedChange={setIncludeFiles} 
+            />
+            <Label htmlFor="thinking-mode" className="flex items-center cursor-pointer gap-2">
+              {includeFiles ? (
+                <><FileCheck className="h-4 w-4 mr-1" /> Include files</>
+              ) : (
+                <><FileX className="h-4 w-4 mr-1" />Include files</>
+              )}
+            </Label>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="flex-1 pr-3">

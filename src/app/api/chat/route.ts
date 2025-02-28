@@ -1,10 +1,16 @@
+import { getRelevantContent } from '@/lib/model-utils'
 import { NextRequest, NextResponse } from 'next/server'
 import ollama from 'ollama'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { messages, reset = false } = body
+    const { messages, reset = false, include_files = false } = body
+
+    if (include_files) {
+        // get the query embeddings and compare against what we already have to form the context.
+        getRelevantContent("deepseek-r1:1.5b", messages[messages.length-1].content)
+    }
     
     // Handle reset request
     if (reset) {

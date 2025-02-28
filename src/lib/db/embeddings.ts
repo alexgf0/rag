@@ -98,4 +98,25 @@ export class EmbeddingUtils {
       if (result.rowCount)
           return result.rowCount > 0
     }
+
+
+    static async getByCosineDistance(refEmbedding: number[], model: string, limit: number): Promise<EmbeddingVector[] | undefined> {
+      const vectorString = `[${refEmbedding.join(',')}]`; // e.g., '[0.1,0.2,0.3]'
+
+      const result: QueryResult = await pool.query(`
+        SELECT 
+            id,
+            filename,
+            content,
+            model,
+            embeddings,
+            1 - (embeddings <=> $1) as cosine_similarity
+        FROM embedding_vector
+        WHERE model = $2
+        ORDER BY embeddings <=> $1
+        LIMIT $3
+    `, [vectorString, model, limit]);
+
+      return result.rows
+    }
 }

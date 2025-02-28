@@ -20,6 +20,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { EmbeddingVector } from "@/lib/db/embeddings"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Progress } from "@/components/ui/progress"
 
 type File = {
   name: string
@@ -30,6 +31,11 @@ type File = {
   embedding?: EmbeddingVector
 }
 
+type EmbeddingProgress = {
+  current: number
+  total: number
+}
+
 interface FileManagerProps {
   onFileSelect: (file: string) => void
   onFileDeleted: () => void
@@ -38,6 +44,7 @@ interface FileManagerProps {
 export default function FileManager({ onFileSelect, onFileDeleted }: FileManagerProps) {
   const [files, setFiles] = useState<File[]>([])
   const [fileNameLoading, setFileNameLoading] = useState<string | undefined>()
+  const [embeddingProgress, setEmbeddingProgress] = useState<EmbeddingProgress | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
 
   useEffect(() => {
@@ -80,7 +87,10 @@ export default function FileManager({ onFileSelect, onFileDeleted }: FileManager
       toast.warning("An embedding is already being loaded")
       return
     }
+    
     setFileNameLoading(filename)
+    setEmbeddingProgress(null)
+    
     try {
       const response = await fetch(`/api/embeddings`, {
         method: "POST",
@@ -90,22 +100,67 @@ export default function FileManager({ onFileSelect, onFileDeleted }: FileManager
         body: JSON.stringify({ filename: filename }),
       })
 
-      if (response.ok) {
-        const data = await response.json() as EmbeddingVector
-        toast.success(`Embeddings generated for ${filename}`)
-        // Update the file's embedding status locally
-        setFiles(prevFiles => 
-          prevFiles.map(file => 
-            file.name === filename ? { ...file, embedding: data } : file
-          )
-        )
-      } else {
-        toast.error(`Could not generate embeddings for ${filename}\nError: ${response.status}`)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const reader = response.body?.getReader()
+      if (!reader) {
+        throw new Error('Response body is null')
+      }
+
+      // Process the incoming stream chunks
+      const decoder = new TextDecoder()
+      let buffer = ''
+      
+      while (true) {
+        const { done, value } = await reader.read()
+        
+        if (done) break
+        
+        // Decode the chunk and add to buffer
+        buffer += decoder.decode(value, { stream: true })
+        
+        // Process complete JSON lines from the buffer
+        let newlineIndex
+        while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+          const line = buffer.slice(0, newlineIndex)
+          buffer = buffer.slice(newlineIndex + 1)
+          
+          if (line.trim()) {
+            try {
+              const data = JSON.parse(line)
+              
+              if (data.error) {
+                throw new Error(data.error)
+              }
+              
+              // Update progress
+              if (data.progress) {
+                setEmbeddingProgress(data.progress)
+              }
+              
+              // Handle completion
+              if (data.done && data.embedding) {
+                // Update the file's embedding status locally
+                setFiles(prevFiles => 
+                  prevFiles.map(file => 
+                    file.name === filename ? { ...file, embedding: data.embedding } : file
+                  )
+                )
+                toast.success(`Embeddings generated for ${filename}`)
+              }
+            } catch (e) {
+              console.error('Error parsing stream:', e, line)
+            }
+          }
+        }
       }
     } catch (error) {
       toast.error(`Failed to generate embeddings: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setFileNameLoading(undefined)
+      setEmbeddingProgress(null)
     }
   }
 
@@ -179,10 +234,14 @@ export default function FileManager({ onFileSelect, onFileDeleted }: FileManager
                                 className="h-fit py-1"
                               >
                                 {
-                                  fileNameLoading == file.name ? (
+                                  fileNameLoading === file.name ? (
                                     <div className="flex gap-2 items-center">
                                       <LoaderCircle className="w-4 h-4 animate-spin" />
-                                      Loading...
+                                      {embeddingProgress ? (
+                                        <span>Loading... {embeddingProgress.current}/{embeddingProgress.total}</span>
+                                      ) : (
+                                        <span>Loading...</span>
+                                      )}
                                     </div>
                                   ) : (
                                     <div className="flex gap-2 items-center">
@@ -192,17 +251,26 @@ export default function FileManager({ onFileSelect, onFileDeleted }: FileManager
                                   )
                                 }
                               </Button>
-                              </TooltipTrigger>
-                              <TooltipContent className="p-3">
-
-                                {
-                                  fileNameLoading == file.name ? (
-                                  <p className="text-xs">Calculating embeddings... may take a while</p>
-                                  ): (
-                                  <p className="text-xs">Calculate embeddings for {file.name}</p>)
-                                }
-
-                              </TooltipContent>
+                            </TooltipTrigger>
+                            <TooltipContent className="p-3">
+                              {
+                                fileNameLoading === file.name ? (
+                                  <div className="space-y-2">
+                                    <p className="text-xs">Calculating embeddings... may take a while</p>
+                                    {embeddingProgress && (
+                                      <div>
+                                        <Progress value={(embeddingProgress.current / embeddingProgress.total) * 100} />
+                                        <p className="text-xs mt-1">
+                                          {embeddingProgress.current} of {embeddingProgress.total} chunks processed
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs">Calculate embeddings for {file.name}</p>
+                                )
+                              }
+                            </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
                       </div>
