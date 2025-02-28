@@ -7,7 +7,7 @@ export interface EmbeddingVector {
   filename: string
   content: string
   model: string
-  embeddings: number[][]
+  embeddings: number[]
 }
 
 export interface EmbeddingFilter {
@@ -22,9 +22,11 @@ export class EmbeddingUtils {
    */
   static async create(embeddingInfo: EmbeddingVector): Promise<EmbeddingVector | undefined> {
       const { filename, content, model, embeddings } = embeddingInfo
+      const vectorString = `[${embeddings.join(',')}]`; // e.g., '[0.1,0.2,0.3]'
+
       const result: QueryResult = await pool.query(
         "INSERT INTO embedding_vector (id, filename, content, model, embeddings) VALUES (DEFAULT, $1, $2, $3, $4) RETURNING *",
-        [filename, content, model, embeddings],
+        [filename, content, model, vectorString],
       )
     
       if (result.rows.length === 0) {

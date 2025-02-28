@@ -30,3 +30,10 @@ Content-Length: 80
 
 
 [embedding models](https://ollama.com/blog/embedding-models)
+
+# Dependencies
+
+```
+brew install pgvector
+```
+

@@ -59,7 +59,7 @@ export async function POST(request: Request) {
         filename: body.filename,
         content: contents,
         model: model_response.model,
-        embeddings: model_response.embeddings
+        embeddings: model_response.embeddings[0]
       }
     )
 
