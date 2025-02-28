@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import fs from "fs"
 import path from "path"
 import { uploadsDir } from "@/lib/file-utils"
@@ -24,21 +24,27 @@ export async function GET(request: Request) {
   })
 }
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: { filename: string } }
-) {
-  const filename = await (async () => {
-    const tmp = await params
-    return tmp.filename
-  })()
+export async function DELETE(request: NextRequest) {
+  const url = new URL(request.url);
+  const pathname = url.pathname;
+
+  // Split the pathname into segments and get the last one as the filename
+  const segments = pathname.split("/");
+  const filename = segments[segments.length - 1];
+
+
+  // Validate that a filename was provided
+  if (!filename) {
+    return NextResponse.json({ error: "Filename is required" }, { status: 400 });
+  }
   const filePath = path.join(uploadsDir, filename || '')
+  console.log("filepath : ", filePath)
 
   if (!fs.existsSync(filePath)) {
     return NextResponse.json({ error: "File not found" }, { status: 404 })
   }
 
-  EmbeddingUtils.delete({filename: filename})
+  await EmbeddingUtils.delete({filename: filename})
   
   try {
     fs.unlinkSync(filePath)

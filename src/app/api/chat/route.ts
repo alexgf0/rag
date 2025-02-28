@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ollama from 'ollama'
 
-export const dynamic = 'force-dynamic' // Ensures the route isn't statically optimized
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { messages } = body
-
+    const { messages, reset = false } = body
+    
+    // Handle reset request
+    if (reset) {
+      return NextResponse.json({ status: 'reset' })
+    }
+    
     // Create a streaming response
     const encoder = new TextEncoder()
     const stream = new TransformStream()

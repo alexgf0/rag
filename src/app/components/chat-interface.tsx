@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff, SquarePen } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 
@@ -19,9 +19,14 @@ type Message = {
 }
 
 export default function ChatInterface() {
-  const [messages, setMessages] = useState<Message[]>([
-    { id: 1, text: "Welcome to the chat! Ask me anything.", sender: "system", complete: true }
-  ])
+  const initialWelcomeMessage = { 
+    id: 1, 
+    text: "Welcome to the chat! Ask me anything.", 
+    sender: "system", 
+    complete: true 
+  }
+  
+  const [messages, setMessages] = useState<Message[]>([initialWelcomeMessage as Message])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [showThinking, setShowThinking] = useState(true)
@@ -41,6 +46,13 @@ export default function ChatInterface() {
       role: msg.sender === "user" ? "user" : "assistant",
       content: msg.text
     }))
+  }
+
+  // Function to reset the chat
+  const resetChat = () => {
+    setMessages([initialWelcomeMessage as Message])
+    setInput("")
+    setIsLoading(false)
   }
 
   // Function to process and extract think sections from text
@@ -118,7 +130,10 @@ export default function ChatInterface() {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ messages: conversationHistory }),
+          body: JSON.stringify({ 
+            messages: conversationHistory,
+            reset: false // Indicate this is not a reset request
+          }),
         })
 
         if (!response.ok) {
@@ -214,6 +229,28 @@ export default function ChatInterface() {
     }
   }
 
+  // Handle reset chat with backend notification
+  const handleResetChat = async () => {
+    // Notify the backend about the reset
+    try {
+      await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          messages: [],
+          reset: true // Signal that this is a reset request
+        }),
+      })
+    } catch (error) {
+      console.error('Error notifying reset:', error)
+    }
+    
+    // Reset the chat UI
+    resetChat()
+  }
+
   // Render individual message with think toggle if applicable
   const renderMessage = (message: Message) => {
     return (
@@ -233,21 +270,35 @@ export default function ChatInterface() {
 
   return (
     <Card className="flex flex-col h-full">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Chat with AI</CardTitle>
-        <div className="flex items-center space-x-2">
-          <Switch 
-            id="thinking-mode" 
-            checked={showThinking} 
-            onCheckedChange={toggleThinking} 
-          />
-          <Label htmlFor="thinking-mode" className="flex items-center cursor-pointer">
-            {showThinking ? (
-              <><Eye className="h-4 w-4 mr-1" /> Show Thinking</>
-            ) : (
-              <><EyeOff className="h-4 w-4 mr-1" /> Hide Thinking</>
-            )}
-          </Label>
+      <CardHeader className="flex flex-col gap-1">
+        <div className="flex justify-between items-center">
+          <CardTitle>Chat with AI</CardTitle>
+          <div className="flex gap-1">
+            <Switch 
+              id="thinking-mode" 
+              checked={showThinking} 
+              onCheckedChange={toggleThinking} 
+            />
+            <Label htmlFor="thinking-mode" className="flex items-center cursor-pointer">
+              {showThinking ? (
+                <><Eye className="h-4 w-4 mr-1" /> Show Thinking</>
+              ) : (
+                <><EyeOff className="h-4 w-4 mr-1" /> Hide Thinking</>
+              )}
+            </Label>
+          </div>
+        </div>
+        <div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleResetChat}
+            disabled={isLoading}
+            className="flex items-center"
+          >
+            <SquarePen className="h-4 w-4" />
+            New Chat
+          </Button>
         </div>
       </CardHeader>
       <CardContent className="flex-1 pr-3">
