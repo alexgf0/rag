@@ -8,6 +8,8 @@ import { Eye, EyeOff, FileCheck, FileX, SquarePen } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { toast } from "sonner"
 
 type Message = {
   id: number
@@ -17,6 +19,37 @@ type Message = {
   hasThinkContent?: boolean
   originalText?: string
 }
+
+// Add these model options
+const modelProviders = [
+  {
+    id: 'ollama',
+    name: 'Ollama',
+    models: [
+      { id: 'deepseek-r1:1.5b', name: 'DeepSeek R1 (1.5B)' },
+      { id: 'deepseek-r1:8b', name: 'DeepSeek R1 (8B)' },
+      { id: 'llama3:8b', name: 'Llama 3 (8B)' }
+    ]
+  },
+  {
+    id: 'claude',
+    name: 'Claude',
+    models: [
+      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
+      { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
+      { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku' }
+    ]
+  },
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    models: [
+      { id: 'gpt-4o', name: 'GPT-4o' },
+      { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
+      { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' }
+    ]
+  }
+];
 
 export default function ChatInterface() {
   const initialWelcomeMessage = { 
@@ -36,6 +69,9 @@ export default function ChatInterface() {
   const messageEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const [selectedProvider, setSelectedProvider] = useState('ollama');
+  const [selectedModel, setSelectedModel] = useState('deepseek-r1:1.5b');
+  const [availableModels, setAvailableModels] = useState(modelProviders[0].models);
 
   // Scroll to bottom of messages - forced on first render
   const scrollToBottom = (force = false) => {
@@ -162,6 +198,15 @@ export default function ChatInterface() {
     }
   }
 
+  // Update available models when provider changes
+  useEffect(() => {
+    const provider = modelProviders.find(p => p.id === selectedProvider);
+    if (provider) {
+      setAvailableModels(provider.models);
+      setSelectedModel(provider.models[0].id);
+    }
+  }, [selectedProvider]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (input.trim() && !isLoading) {
@@ -201,13 +246,16 @@ export default function ChatInterface() {
           },
           body: JSON.stringify({ 
             messages: conversationHistory,
-            reset: false, // Indicate this is not a reset request
-            include_files: includeFiles
+            reset: false,
+            include_files: includeFiles,
+            provider: selectedProvider,
+            model: selectedModel
           }),
         })
 
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
+          const errorData = await response.json();
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
         }
 
         const reader = response.body?.getReader()
@@ -239,7 +287,9 @@ export default function ChatInterface() {
                 const data = JSON.parse(line)
                 
                 if (data.error) {
-                  throw new Error(data.error)
+                  // Handle stream errors properly by throwing them to the outer catch block
+                  const errorMessage = data.error;
+                  throw new Error(errorMessage);
                 }
                 
                 // Update the full response and the displayed message
@@ -281,6 +331,19 @@ export default function ChatInterface() {
                 }
               } catch (e) {
                 console.error('Error parsing stream:', e, line)
+                // Propagate the error to the outer catch block
+                if (line.includes("error")) {
+                  try {
+                    const errorData = JSON.parse(line);
+                    if (errorData.error) {
+                      throw new Error(errorData.error);
+                    }
+                  } catch { // If we can't parse the JSON, just throw the original error
+                    throw e;
+                  }
+                } else {
+                  throw e;
+                }
               }
             }
           }
@@ -288,9 +351,20 @@ export default function ChatInterface() {
 
       } catch (error) {
         console.error('Error:', error)
+        
+        // Extract and display user-friendly error message
+        const errorMessage = "Sorry, I encountered an error. Please try again.";
+        
+        console.log("ERROR: ", error)
+        // Check for specific error patterns
+        if (error instanceof Error) {
+          console.log("error.message: ", error.message)
+          toast.error(error.message)
+        }
+        
         setMessages(prev => prev.map(msg => 
           msg.id === aiMessageId 
-            ? { ...msg, text: "Sorry, I encountered an error. Please try again.", complete: true }
+            ? { ...msg, text: errorMessage, complete: true }
             : msg
         ))
       } finally {
@@ -372,6 +446,36 @@ export default function ChatInterface() {
             <SquarePen className="h-4 w-4" />
             New Chat
           </Button>
+          
+          {/* Add model selection UI */}
+          <div className="flex items-center gap-2">
+            <Select value={selectedProvider} onValueChange={setSelectedProvider}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Provider" />
+              </SelectTrigger>
+              <SelectContent>
+                {modelProviders.map(provider => (
+                  <SelectItem key={provider.id} value={provider.id}>
+                    {provider.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            <Select value={selectedModel} onValueChange={setSelectedModel}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Model" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableModels.map(model => (
+                  <SelectItem key={model.id} value={model.id}>
+                    {model.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
           <div className="flex gap-3">
             <Switch 
               id="include-files" 
