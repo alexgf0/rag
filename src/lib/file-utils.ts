@@ -13,40 +13,52 @@ export function ensureUploadsDir() {
 
 export async function ensureFileExists(filename: string): Promise<boolean> {
   return new Promise((resolve) => {
-    const filePath = uploadsDir + "/"+ filename
+    const filePath = path.join(uploadsDir, filename)
     fs.access(filePath, fs.constants.F_OK, (err) => {
       resolve(!err)
     })
   })
 }
 
-export async function extractFileContents(filename: string): Promise<string[]> {
-  const filePath = uploadsDir + "/"+ filename
-  try {
-    // Read the PDF file as a buffer
-    const dataBuffer = fs.readFileSync(filePath);
-    
-    // Parse the PDF
-    const data = await pdfParse(dataBuffer);
-    
-    // Get the text content
-    let text: string = data.text;
-    
-    // Sanitize the text:
-    // 1. Remove null bytes (0x00)
-    text = text.replace(/\0/g, '');
-    
-    // 2. Replace other potentially problematic characters
-    text = text.replace(/[\uFFFD\uFFFE\uFFFF]/g, '');
-    
-    // 3. Ensure valid UTF-8 by replacing invalid characters
-    text = text.replace(/[^\x20-\x7E\x0A\x0D\u00A0-\uFFFC]/g, '');
+async function extractPDFContents(filePath: string): Promise<string> {
+  const dataBuffer = fs.readFileSync(filePath);
+  const data = await pdfParse(dataBuffer);
+  return data.text;
+}
 
-    // 4. Swap multiple spaces for one space
-    text = normalizeSpaces(text)
-    
-    return splitStringByLength(text, 8192)
+async function extractTextContents(filePath: string): Promise<string> {
+  return fs.readFileSync(filePath, 'utf8');
+}
+
+export async function extractFileContents(filename: string): Promise<string[]> {
+  const filePath = path.join(uploadsDir, filename);
+  const ext = path.extname(filename).toLowerCase();
+
+  try {
+    let text: string;
+
+    switch (ext) {
+      case '.pdf':
+        text = await extractPDFContents(filePath);
+        break;
+      case '.txt':
+        text = await extractTextContents(filePath);
+        break
+      case '.md':
+        text = await extractTextContents(filePath);
+        break;
+      default:
+        throw new Error(`Unsupported file type: ${ext}`);
+    }
+
+    // Sanitize the text
+    text = text.replace(/\0/g, ''); // Remove null bytes
+    text = text.replace(/[\uFFFD\uFFFE\uFFFF]/g, ''); // Remove problematic characters
+    text = text.replace(/[^\x20-\x7E\x0A\x0D\u00A0-\uFFFC]/g, ''); // Ensure valid UTF-8
+    text = normalizeSpaces(text); // Normalize spaces
+
+    return splitStringByLength(text, 8192);
   } catch (error) {
-      throw new Error(`Failed to extract PDF text: ${error}`);
+    throw new Error(`Failed to extract contents from ${filename}: ${error}`);
   }
 }

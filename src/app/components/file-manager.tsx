@@ -101,7 +101,8 @@ export default function FileManager({ onFileSelect, onFileDeleted }: FileManager
       })
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorData = await response.json()
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
       }
 
       const reader = response.body?.getReader()
@@ -109,7 +110,6 @@ export default function FileManager({ onFileSelect, onFileDeleted }: FileManager
         throw new Error('Response body is null')
       }
 
-      // Process the incoming stream chunks
       const decoder = new TextDecoder()
       let buffer = ''
       
@@ -118,10 +118,8 @@ export default function FileManager({ onFileSelect, onFileDeleted }: FileManager
         
         if (done) break
         
-        // Decode the chunk and add to buffer
         buffer += decoder.decode(value, { stream: true })
         
-        // Process complete JSON lines from the buffer
         let newlineIndex
         while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
           const line = buffer.slice(0, newlineIndex)
@@ -135,14 +133,11 @@ export default function FileManager({ onFileSelect, onFileDeleted }: FileManager
                 throw new Error(data.error)
               }
               
-              // Update progress
               if (data.progress) {
                 setEmbeddingProgress(data.progress)
               }
               
-              // Handle completion
               if (data.done && data.embedding) {
-                // Update the file's embedding status locally
                 setFiles(prevFiles => 
                   prevFiles.map(file => 
                     file.name === filename ? { ...file, embedding: data.embedding } : file
@@ -151,13 +146,28 @@ export default function FileManager({ onFileSelect, onFileDeleted }: FileManager
                 toast.success(`Embeddings generated for ${filename}`)
               }
             } catch (e) {
-              console.error('Error parsing stream:', e, line)
+              const errorMessage = e instanceof Error ? e.message : 'Unknown error parsing stream data'
+              throw new Error(`Stream processing error: ${errorMessage}`)
             }
           }
         }
       }
     } catch (error) {
-      toast.error(`Failed to generate embeddings: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      let errorMessage = 'Failed to generate embeddings'
+      
+      if (error instanceof Error) {
+        if (error.message.includes('Filename not found')) {
+          errorMessage = `File "${filename}" not found`
+        } else if (error.message.includes('Unsupported file type')) {
+          errorMessage = `Unsupported file type for "${filename}"`
+        } else if (error.message.includes('Failed to extract contents')) {
+          errorMessage = `Failed to process file "${filename}"`
+        } else {
+          errorMessage = `${error.message}`
+        }
+      }
+      
+      toast.error(errorMessage)
     } finally {
       setFileNameLoading(undefined)
       setEmbeddingProgress(null)
@@ -174,9 +184,9 @@ export default function FileManager({ onFileSelect, onFileDeleted }: FileManager
       case "jpeg":
       case "png":
       case "gif":
-        return <ImageIcon className="w-6 h-6 text-green-500" />
+        return <ImageIcon className="p-0.5 w-8 h-8 text-green-500 rounded-md hover:bg-green-50 hover:cursor-pointer" onClick={onClick} />
       default:
-        return <FileIcon className="w-6 h-6 text-blue-500" />
+        return <FileIcon className="p-0.5 w-8 h-8 text-blue-500 rounded-md hover:bg-blue-50 hover:cursor-pointer" onClick={onClick} />
     }
   }
 

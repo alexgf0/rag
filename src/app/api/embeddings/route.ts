@@ -10,9 +10,11 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const filename = searchParams.get('filename');
   const filePath = path.join(uploadsDir, filename || '');
+  
   if (!fs.existsSync(filePath)) {
     return NextResponse.json({ error: "File not found" }, { status: 404 })
   }
+  
   const fileBuffer = fs.readFileSync(filePath)
   const headers = new Headers()
   headers.set("Content-Disposition", `attachment; filename="${filename}"`)
@@ -28,25 +30,23 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
   
-    if (typeof body.filename != 'string') {
+    if (typeof body.filename !== 'string') {
       return NextResponse.json({ message: "Specify a filename" }, { status: 400 })
     }
+    
     if (!(await ensureFileExists(body.filename))) {
-      return NextResponse.json({ message: "Filename not found" }, { status: 404 })
+      return NextResponse.json({ message: "File not found" }, { status: 404 })
     }
     
-    // check that the file doesn't already have their embeddings calculate
-    const embeddings = await EmbeddingUtils.get({filename: body.filename})
+    const embeddings = await EmbeddingUtils.get({ filename: body.filename })
     if (embeddings) {
       return NextResponse.json(embeddings)
     }
     
-    // Create a streaming response
     const encoder = new TextEncoder()
     const stream = new TransformStream();
     const writer = stream.writable.getWriter();
     
-    // Start processing in the background
     (async () => {
       try {
         const contents = await extractFileContents(body.filename)
@@ -71,7 +71,6 @@ export async function POST(request: Request) {
           lastEmbedding = newEmbedding
           processedChunks++
           
-          // Send progress update
           await writer.write(
             encoder.encode(JSON.stringify({
               progress: {
@@ -83,7 +82,6 @@ export async function POST(request: Request) {
           )
         }
         
-        // Send completion with the final embedding
         await writer.write(
           encoder.encode(JSON.stringify({
             embedding: lastEmbedding,
@@ -98,7 +96,7 @@ export async function POST(request: Request) {
         console.error("Error processing embeddings:", error)
         await writer.write(
           encoder.encode(JSON.stringify({
-            error: "Failed to process embeddings",
+            error: error instanceof Error ? error.message : "Failed to process embeddings",
             done: true
           }) + '\n')
         )
@@ -116,6 +114,8 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     console.error("Error handling embedding request:", error)
-    return NextResponse.json({ message: "Failed to extract embeddings" }, { status: 500 })
+    return NextResponse.json({ 
+      message: error instanceof Error ? error.message : "Failed to extract embeddings" 
+    }, { status: 500 })
   }
 }
