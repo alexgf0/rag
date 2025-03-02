@@ -166,10 +166,10 @@ export default function FileManager({ onFileSelect, onFileDeleted }: FileManager
 
   const filteredFiles = files.length > 0 ? files.filter((file) => file.name.toLowerCase().includes(searchTerm.toLowerCase())) : []
 
-  const getFileIcon = (type: string) => {
+  const getFileIcon = (type: string, onClick: () => void) => {
     switch (type) {
       case "pdf":
-        return <FileTextIcon className="w-6 h-6 text-red-500" />
+        return <FileTextIcon className="p-0.5 w-8 h-8 text-red-500 rounded-md hover:bg-red-50 hover:cursor-pointer" onClick={onClick} />
       case "jpg":
       case "jpeg":
       case "png":
@@ -201,9 +201,14 @@ export default function FileManager({ onFileSelect, onFileDeleted }: FileManager
           <Card key={file.name}>
             <CardContent className="flex items-center justify-between p-4">
               <div className="flex items-center space-x-4">
-                {getFileIcon(file.type)}
+                {getFileIcon(file.type, () => onFileSelect(file.name))}
                 <div className="flex flex-col gap-1 justify-center">
-                  <p className="font-medium">{file.name}</p>
+                  <button 
+                    onClick={() => onFileSelect(file.name)}
+                    className="font-medium text-left hover:underline hover:text-primary transition-colors"
+                  >
+                    {file.name}
+                  </button>
                   <div className="flex items-center space-x-4">
                     <p className="text-sm text-muted-foreground">{formatFileSize(file.size)}</p>
                     {file.embedding ? (
@@ -279,9 +284,6 @@ export default function FileManager({ onFileSelect, onFileDeleted }: FileManager
                 </div>
               </div>
               <div className="flex items-center space-x-2">
-                <Button onClick={() => onFileSelect(file.name)} variant="secondary" size="sm">
-                  View
-                </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="destructive" size="sm">

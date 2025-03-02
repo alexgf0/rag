@@ -3,7 +3,6 @@
 import { useState, useCallback } from "react"
 import FileUpload from "./components/file-upload"
 import FileManager from "./components/file-manager"
-import PDFViewer from "./components/pdf-viewer"
 import ChatInterface from "./components/chat-interface"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Button } from "@/components/ui/button"
@@ -11,12 +10,16 @@ import { RefreshCw } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 
 export default function Home() {
-  const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
 
   const handleRefresh = useCallback(() => {
     setRefreshKey((prevKey) => prevKey + 1)
   }, [])
+
+  const handleFileSelect = useCallback((fileName: string) => {
+    // Open the file in a new tab
+    window.open(`/uploads/${fileName}`, '_blank');
+  }, []);
 
   return (
     <div className="flex h-screen bg-background text-foreground">
@@ -32,8 +35,7 @@ export default function Home() {
         </div>
         <FileUpload onUploadComplete={handleRefresh} />
         <Separator className="mb-4" />
-        <FileManager key={refreshKey} onFileSelect={setSelectedFile} onFileDeleted={handleRefresh} />
-        {selectedFile && <PDFViewer file={selectedFile} />}
+        <FileManager key={refreshKey} onFileSelect={handleFileSelect} onFileDeleted={handleRefresh} />
       </div>
       <div className="w-1/2 border-l border-border">
         <ChatInterface />
