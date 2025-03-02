@@ -28,10 +28,10 @@ export async function DELETE(request: NextRequest) {
   const url = new URL(request.url);
   const pathname = url.pathname;
 
-  // Split the pathname into segments and get the last one as the filename
   const segments = pathname.split("/");
-  const filename = segments[segments.length - 1];
-
+  const encodedFilename = segments[segments.length - 1];
+  // Decode URL-encoded characters in the filename
+  const filename = decodeURIComponent(encodedFilename);
 
   // Validate that a filename was provided
   if (!filename) {
