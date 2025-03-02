@@ -8,7 +8,34 @@ const anthropic = new Anthropic({
 export const claudeProvider: ModelProvider = {
   id: 'claude',
   name: 'Claude',
-  models: ['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'],
+  models: [
+    'claude-3-5-sonnet-20240620', 
+    'claude-3-opus-20240229', 
+    'claude-3-sonnet-20240229', 
+    'claude-3-haiku-20240307',
+    'claude-3-7-sonnet-20250219'
+  ],
+  
+  getModels: async function(): Promise<string[] | { error: string, code: number }> {
+    try {
+      const modelsList = await anthropic.models.list();
+      return modelsList.data.map(model => model.id);
+    } catch (error) {
+      console.error('Error fetching Claude models:', error);
+      
+      if (error instanceof Error && error.message.includes('401')) {
+        return { 
+          error: 'Authentication failed. Please configure your Anthropic API key.', 
+          code: 401 
+        };
+      }
+      
+      return { 
+        error: 'Failed to fetch models. Please try again later.', 
+        code: 500 
+      };
+    }
+  },
   
   chat: async function(model: string, messages: ChatMessage[]): Promise<StreamingResponse<unknown, unknown>> {
     const claudeMessages = messages.map(msg => ({
@@ -38,4 +65,4 @@ export const claudeProvider: ModelProvider = {
       }
     };
   }
-}; 
+};

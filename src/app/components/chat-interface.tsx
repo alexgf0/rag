@@ -35,9 +35,11 @@ const modelProviders = [
     id: 'claude',
     name: 'Claude',
     models: [
+      { id: 'claude-3-5-sonnet-20240620', name: 'Claude 3.5 Sonnet' },
       { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
       { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
-      { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku' }
+      { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku' },
+      { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet' }
     ]
   },
   {
@@ -72,6 +74,8 @@ export default function ChatInterface() {
   const [selectedProvider, setSelectedProvider] = useState('ollama');
   const [selectedModel, setSelectedModel] = useState('deepseek-r1:1.5b');
   const [availableModels, setAvailableModels] = useState(modelProviders[0].models);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [modelError, setModelError] = useState<string | null>(null);
 
   // Scroll to bottom of messages - forced on first render
   const scrollToBottom = (force = false) => {
@@ -198,14 +202,96 @@ export default function ChatInterface() {
     }
   }
 
-  // Update available models when provider changes
+  // Fetch available models when provider changes
   useEffect(() => {
-    const provider = modelProviders.find(p => p.id === selectedProvider);
-    if (provider) {
-      setAvailableModels(provider.models);
-      setSelectedModel(provider.models[0].id);
-    }
+    const fetchModels = async () => {
+      setIsLoadingModels(true);
+      setModelError(null); // Reset error state
+      
+      try {
+        const response = await fetch(`/api/models?provider=${selectedProvider}`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch models');
+        }
+        
+        const data = await response.json();
+        
+        // Check if we received an error message
+        if (data.error) {
+          setModelError(data.error);
+          
+          // Still use the fallback models for the UI
+          const provider = modelProviders.find(p => p.id === selectedProvider);
+          if (provider) {
+            setAvailableModels(provider.models);
+            setSelectedModel(provider.models[0].id);
+          }
+          return;
+        }
+        
+        if (data.models && Array.isArray(data.models)) {
+          // Convert API response to the format needed for the UI
+          const formattedModels = data.models.map((modelId: string) => ({
+            id: modelId,
+            name: formatModelName(modelId)
+          }));
+          
+          setAvailableModels(formattedModels);
+          
+          // Set the first model as selected if the current selection isn't available
+          const modelExists = formattedModels.some((model: { id: string; name: string }) => model.id === selectedModel);
+          if (!modelExists && formattedModels.length > 0) {
+            setSelectedModel(formattedModels[0].id);
+          }
+        } else {
+          // Fallback to static models if API doesn't return expected format
+          const provider = modelProviders.find(p => p.id === selectedProvider);
+          if (provider) {
+            setAvailableModels(provider.models);
+            setSelectedModel(provider.models[0].id);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching models:', error);
+        // Fallback to static models on error
+        const provider = modelProviders.find(p => p.id === selectedProvider);
+        if (provider) {
+          setAvailableModels(provider.models);
+          setSelectedModel(provider.models[0].id);
+        }
+        setModelError('Failed to fetch available models');
+      } finally {
+        setIsLoadingModels(false);
+      }
+    };
+    
+    fetchModels();
   }, [selectedProvider]);
+  
+  // Helper function to format model IDs into readable names
+  const formatModelName = (modelId: string): string => {
+    // Try to extract a readable name from the model ID
+    // Example: "claude-3-opus-20240229" -> "Claude 3 Opus"
+    const parts = modelId.split('-');
+    
+    if (modelId.includes('claude')) {
+      // Handle Claude models
+      // Remove date suffix if present (e.g., 20240229)
+      const withoutDate = parts.filter(part => !part.match(/^\d{8}$/));
+      return withoutDate
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+    } else if (modelId.includes('gpt')) {
+      // Handle OpenAI models
+      return modelId.toUpperCase();
+    } else {
+      // For other models, just capitalize and join with spaces
+      return parts
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -462,9 +548,16 @@ export default function ChatInterface() {
               </SelectContent>
             </Select>
             
-            <Select value={selectedModel} onValueChange={setSelectedModel}>
+            <Select value={selectedModel} onValueChange={setSelectedModel} disabled={isLoadingModels}>
               <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Model" />
+                {isLoadingModels ? (
+                  <div className="flex items-center">
+                    <span className="animate-spin mr-2">⟳</span>
+                    <span>Loading...</span>
+                  </div>
+                ) : (
+                  <SelectValue placeholder="Model" />
+                )}
               </SelectTrigger>
               <SelectContent>
                 {availableModels.map(model => (
@@ -491,6 +584,13 @@ export default function ChatInterface() {
             </Label>
           </div>
         </div>
+        
+        {/* Display API key configuration message */}
+        {modelError && (selectedProvider === 'claude' || selectedProvider === 'openai') && (
+          <div className="text-xs text-red-500 mt-1">
+            {modelError}
+          </div>
+        )}
       </CardHeader>
       <CardContent className="flex-1 pr-3 overflow-hidden">
         {/* Use dynamic height that adjusts based on textarea size */}

@@ -17,6 +17,6 @@ export interface ModelProvider {
   id: string;
   name: string;
   models: string[];
-  getModels?: () => Promise<string[]>;
+  getModels?: () => Promise<string[] | { error: string, code: number }>;
   chat: (model: string, messages: ChatMessage[]) => Promise<StreamingResponse<unknown, unknown>>;
 } 
