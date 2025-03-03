@@ -1,5 +1,5 @@
-import ollama from 'ollama'
 import { EmbeddingUtils, EmbeddingVector } from './db/embeddings';
+import { ollama } from './model-providers/ollama';
 
 
 export async function getRelevantContent(model: string, query: string, limit: number = 3): Promise<EmbeddingVector[]> {

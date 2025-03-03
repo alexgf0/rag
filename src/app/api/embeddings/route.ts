@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server"
 import fs from "fs"
 import path from "path"
-import ollama from 'ollama'
+// import ollama from 'ollama'
 import { ensureFileExists, extractFileContents, uploadsDir } from "@/lib/file-utils"
 import { EmbeddingUtils } from "@/lib/db/embeddings"
+import { ollama } from "@/lib/model-providers/ollama"
 
 // Get the embedding model from environment variables with fallback
 const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || "mxbai-embed-large"
