@@ -4,7 +4,7 @@ import { EmbeddingUtils, EmbeddingVector } from './db/embeddings';
 
 export async function getRelevantContent(model: string, query: string, limit: number = 3): Promise<EmbeddingVector[]> {
     const queryEmbedding = await ollama.embed({
-        model: 'mxbai-embed-large',
+        model: model,
         input: query
     });
 

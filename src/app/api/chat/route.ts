@@ -4,6 +4,9 @@ import { openaiProvider } from '@/lib/model-providers/openai';
 import { getRelevantContent } from '@/lib/model-utils'
 import { NextRequest, NextResponse } from 'next/server'
 
+// Get the embedding model from environment variables with fallback
+const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || "mxbai-embed-large"
+
 const providers = {
   ollama: ollamaProvider,
   claude: claudeProvider,
@@ -14,21 +17,17 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { messages, reset = false, include_files = false, provider = 'ollama', model = 'deepseek-r1:1.5b' } = body
-
+    
     if (include_files) {
-      const contexts = await getRelevantContent("mxbai-embed-large", messages[messages.length-1].content)
-
+      const contexts = await getRelevantContent(EMBEDDING_MODEL, messages[messages.length-1].content)
       let fullContext = ""
-
       for (let i=0; i < contexts.length; i++) {
         fullContext = fullContext + "\n\n" + contexts[i].content
       }
-
       if (messages.length > 0) {
         messages[messages.length-1].content = 'With the following context: \n' + fullContext + '\n\n Can you response the following question: ' + messages[messages.length-1].content
       }
     }
-
     // Handle reset request
     if (reset) {
       return NextResponse.json({ status: 'reset' })
@@ -38,13 +37,11 @@ export async function POST(request: NextRequest) {
     const encoder = new TextEncoder()
     const stream = new TransformStream()
     const writer = stream.writable.getWriter()
-
     // Get the selected provider
     const selectedProvider = providers[provider as keyof typeof providers];
     if (!selectedProvider) {
       return NextResponse.json({ error: 'Invalid provider' }, { status: 400 });
     }
-
     // Process the streaming response
     (async () => {
       try {
@@ -97,7 +94,6 @@ export async function POST(request: NextRequest) {
         await writer.close()
       }
     })()
-
     return new NextResponse(stream.readable, {
       headers: {
         'Content-Type': 'text/event-stream',

@@ -5,6 +5,9 @@ import ollama from 'ollama'
 import { ensureFileExists, extractFileContents, uploadsDir } from "@/lib/file-utils"
 import { EmbeddingUtils } from "@/lib/db/embeddings"
 
+// Get the embedding model from environment variables with fallback
+const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || "mxbai-embed-large"
+
 // get embedding
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -24,7 +27,6 @@ export async function GET(request: Request) {
     headers,
   })
 }
-
 // create embedding
 export async function POST(request: Request) {
   try {
@@ -56,7 +58,7 @@ export async function POST(request: Request) {
         
         for (let i = 0; i < contents.length; i++) {
           const model_response = await ollama.embed({
-            model: "mxbai-embed-large",
+            model: EMBEDDING_MODEL,
             input: contents[i]
           })
           
