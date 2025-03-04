@@ -1,7 +1,7 @@
 import { Ollama } from 'ollama';
 import { ChatMessage, ModelProvider, StreamingResponse } from './types';
 
-export const ollama = new Ollama({host: process.env.OLLAMA_HOST || 'http://localhost:11434'})
+export const ollama = new Ollama({host: 'http://ollama:11434'})
 
 export const ollamaProvider: ModelProvider = {
   id: 'ollama',

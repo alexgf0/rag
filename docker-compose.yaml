@@ -28,7 +28,6 @@ services:
       ANTHROPIC_API_KEY: your-anthropic-api-key
       OPENAI_API_KEY: your-opnai-api-key
       EMBEDDING_MODEL: nomic-embed-text # choose ollama embedding model (we don't have the possibility to use remote models yet here)
-      OLLAMA_HOST: "http://host.docker.internal:11434"
     depends_on:
       - db
     networks:

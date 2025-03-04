@@ -1,39 +1,17 @@
+# How to run
+You should have ollama install as a container or [follow the install instructions](https://ollama.com/blog/ollama-is-now-available-as-an-official-docker-image)
 
-I'm using the DeepSeek-R1 8 billion parameter model.
-
-- test installation with:
-```http
-POST /api/generate HTTP/1.1
-Host: localhost:11434
-Content-Type: application/json
-Content-Length: 78
-
-{
-  "model": "deepseek-r1:8b",
-  "prompt":" Why is the colour of sea blue ?"
-}
+Create the `nextjs` container and the `DB` container by executing the following in the root directory:
+```bash
+docker compose up --build -d
 ```
 
-- mxbai-embed-large installation test:
-```http
-POST /api/embed HTTP/1.1
-Host: localhost:11434
-Content-Type: application/json
-Content-Length: 80
-
-{
-  "model": "mxbai-embed-large",
-  "input":" Why is the colour of sea blue ?"
-}
+Once the containers have been created connect the ollama container to the docker network with:
+```bash
+docker network connect rag_app_network ollama
 ```
 
+Open your browser and go to `http://localhost:3000`.
 
 
-[embedding models](https://ollama.com/blog/embedding-models)
-
-# Dependencies
-
-```
-brew install pgvector
-```
 
