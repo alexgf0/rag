@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
         fullContext = fullContext + "\n\n" + contexts[i].content
       }
       if (messages.length > 0) {
-        messages[messages.length-1].content = 'With the following context: \n' + fullContext + '\n\n Can you response the following question: ' + messages[messages.length-1].content
+        messages[messages.length-1].content = 'With the following context: \n' + fullContext + '\n\n Respond to the following question: ' + messages[messages.length-1].content
       }
     }
     // Handle reset request

@@ -20,7 +20,7 @@ type Message = {
   originalText?: string
 }
 
-// Add these model options
+// Add these fallback model options
 const modelProviders = [
   {
     id: 'ollama',

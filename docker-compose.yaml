@@ -24,9 +24,8 @@ services:
       - "3000:3000"
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/rag
-      # Add other environment variables your app needs
       ANTHROPIC_API_KEY: your-anthropic-api-key
-      OPENAI_API_KEY: your-opnai-api-key
+      OPENAI_API_KEY: your-openai-api-key
       EMBEDDING_MODEL: nomic-embed-text # choose ollama embedding model (we don't have the possibility to use remote models yet here)
     depends_on:
       - db
