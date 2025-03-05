@@ -31,6 +31,8 @@ services:
       - db
     networks:
       - app_network
+    volumes:
+      - ./uploads:/app/uploads
 
 networks:
   app_network:

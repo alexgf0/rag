@@ -3,7 +3,7 @@ import path from "path"
 import pdfParse from 'pdf-parse';
 import { normalizeSpaces, splitStringByLength } from "./utils";
 
-export const uploadsDir = path.join(process.cwd(), "/public/uploads")
+export const uploadsDir = path.join(process.cwd(), "uploads")
 
 export function ensureUploadsDir() {
   if (!fs.existsSync(uploadsDir)) {
@@ -20,9 +20,41 @@ export async function ensureFileExists(filename: string): Promise<boolean> {
   })
 }
 
+// Helper function to detect if text is likely gibberish
+function isLikelyGibberish(text: string): boolean {
+  if (text.length < 100) return false; // Skip short texts
+  
+  // Check for lack of spaces (gibberish often has very few spaces)
+  const spacesRatio = (text.match(/ /g) || []).length / text.length;
+  if (spacesRatio > 0.1) return false;
+  
+  const commonWords = ['the', 'and', 'for', 'that', 'this', 'with', 'from', 'have', 'not', 'page', 'chapter'];
+  const wordMatches = commonWords.filter(word => 
+    text.toLowerCase().includes(` ${word} `) || 
+    text.toLowerCase().startsWith(`${word} `)
+  );
+  // Only consider it gibberish if both space ratio is low AND common words are missing
+  if (wordMatches.length < 1 && text.length > 2000) return true;
+  
+  // Check for extremely long strings without spaces (a clear sign of encoding issues)
+  const maxNoSpaceLength = text.split(' ')
+    .map(word => word.length)
+    .reduce((max, len) => Math.max(max, len), 0);
+  
+  if (maxNoSpaceLength > 100) return true; // Only flag extremely long "words"
+  
+  return false;
+}
+
 async function extractPDFContents(filePath: string): Promise<string> {
   const dataBuffer = fs.readFileSync(filePath);
   const data = await pdfParse(dataBuffer);
+  
+  if (isLikelyGibberish(data.text)) {
+    // Return a special error message that will be detected by the calling code
+    return "[[PDF_EXTRACTION_ERROR: This PDF could not be properly extracted. It may be encrypted, scanned, or using a non-standard encoding.]]";
+  }
+  
   return data.text;
 }
 
@@ -40,6 +72,10 @@ export async function extractFileContents(filename: string): Promise<string[]> {
     switch (ext) {
       case '.pdf':
         text = await extractPDFContents(filePath);
+        // Check for the special error message
+        if (text.startsWith("[[PDF_EXTRACTION_ERROR:")) {
+          throw new Error(text.replace("[[PDF_EXTRACTION_ERROR:", "").replace("]]", ""));
+        }
         break;
       case '.txt':
         text = await extractTextContents(filePath);

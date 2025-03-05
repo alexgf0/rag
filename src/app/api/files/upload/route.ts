@@ -19,7 +19,11 @@ export async function POST(request: Request) {
     const filePath = path.join(uploadsDir, file.name)
     await writeFile(filePath, buffer)
 
-    return NextResponse.json({ success: true, message: "File uploaded successfully" })
+    return NextResponse.json({ 
+      success: true, 
+      message: "File uploaded successfully",
+      filename: file.name
+    })
   } catch (error) {
     console.error("Error uploading file:", error)
     return NextResponse.json({ success: false, message: "Failed to upload file" }, { status: 500 })

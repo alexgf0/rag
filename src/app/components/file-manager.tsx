@@ -161,7 +161,11 @@ export default function FileManager({ onFileSelect, onFileDeleted }: FileManager
         } else if (error.message.includes('Unsupported file type')) {
           errorMessage = `Unsupported file type for "${filename}"`
         } else if (error.message.includes('Failed to extract contents')) {
-          errorMessage = `Failed to process file "${filename}"`
+          if (error.message.includes('PDF could not be properly extracted')) {
+            errorMessage = `PDF extraction failed: The file "${filename}" appears to be encrypted, scanned, or using a non-standard encoding.`
+          } else {
+            errorMessage = `Failed to process file "${filename}"`
+          }
         } else {
           errorMessage = `${error.message}`
         }

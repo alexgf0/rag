@@ -17,8 +17,8 @@ export default function Home() {
   }, [])
 
   const handleFileSelect = useCallback((fileName: string) => {
-    // Open the file in a new tab
-    window.open(`/uploads/${fileName}`, '_blank');
+    // Open the file using our API route with search parameters
+    window.open(`/api/files/serve?filename=${encodeURIComponent(fileName)}`, '_blank');
   }, []);
 
   return (
