@@ -363,33 +363,38 @@ export default function ChatInterface() {
         const decoder = new TextDecoder()
         let buffer = ''
         let fullResponse = ''
+        let lastUpdateTime = Date.now()
 
         while (true) {
-          const { done, value } = await reader.read()
-
-          if (done) break
-
-          // Decode the chunk and add to buffer
-          buffer += decoder.decode(value, { stream: true })
-          
-          // Process complete JSON lines from the buffer
-          let newlineIndex
-          while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
-            const line = buffer.slice(0, newlineIndex)
-            buffer = buffer.slice(newlineIndex + 1)
+          try {
+            const { done, value } = await reader.read()
             
-            if (line.trim()) {
+            if (done) break
+            
+            // Decode the chunk and add to buffer
+            const text = decoder.decode(value, { stream: true })
+            buffer += text
+            
+            // Process complete JSON lines from the buffer
+            let newlineIndex
+            while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+              const line = buffer.slice(0, newlineIndex).trim()
+              buffer = buffer.slice(newlineIndex + 1)
+              
+              // Skip empty lines and keep-alive comments
+              if (!line || line.startsWith(':')) {
+                continue
+              }
+              
               try {
                 const data = JSON.parse(line)
                 
                 if (data.error) {
-                  // Handle stream errors properly by throwing them to the outer catch block
-                  const errorMessage = data.error;
-                  throw new Error(errorMessage);
+                  throw new Error(data.error)
                 }
                 
                 // Update the full response and the displayed message
-                if (data.content) {
+                if (data.content !== undefined) {
                   fullResponse += data.content
                   
                   // Check if we need to process think sections
@@ -408,8 +413,11 @@ export default function ChatInterface() {
                         : msg,
                     ),
                   )
+                  
+                  // Update the last update time
+                  lastUpdateTime = Date.now()
                 }
-
+                
                 // Add file chunks if they're included in the response
                 if (data.fileChunks) {
                   setMessages((prev) =>
@@ -423,12 +431,12 @@ export default function ChatInterface() {
                     ),
                   )
                 }
-
+                
                 // Mark message as complete when done
                 if (data.done) {
                   // Final processing of the complete response
                   const { processedText, hasThinkContent } = processThinkSections(fullResponse)
-
+                  
                   setMessages((prev) =>
                     prev.map((msg) =>
                       msg.id === aiMessageId
@@ -444,23 +452,55 @@ export default function ChatInterface() {
                     ),
                   )
                 }
-              } catch (e) {
-                console.error('Error parsing stream:', e, line)
-                // Propagate the error to the outer catch block
-                if (line.includes("error")) {
-                  try {
-                    const errorData = JSON.parse(line);
-                    if (errorData.error) {
-                      throw new Error(errorData.error);
-                    }
-                  } catch { // If we can't parse the JSON, just throw the original error
-                    throw e;
-                  }
-                } else {
-                  throw e;
+              } catch (parseError) {
+                console.error('Error parsing JSON:', parseError, 'Line:', line)
+                // Only throw if it's not a parsing error or if it contains an explicit error message
+                if (!(parseError instanceof SyntaxError) || line.includes('"error"')) {
+                  throw parseError
                 }
               }
             }
+            
+            // Force UI update if it's been more than 500ms since the last update
+            // This ensures the UI updates even if we're receiving partial chunks
+            if (Date.now() - lastUpdateTime > 500) {
+              const { processedText, hasThinkContent } = processThinkSections(fullResponse)
+              
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === aiMessageId
+                    ? {
+                        ...msg,
+                        text: showThinking ? fullResponse : processedText,
+                        hasThinkContent,
+                        originalText: fullResponse,
+                      }
+                    : msg,
+              ),
+            )
+              
+              lastUpdateTime = Date.now()
+            }
+          } catch (streamError) {
+            console.error('Stream reading error:', streamError)
+            
+            // Extract and display user-friendly error message
+            let errorMessage = "Sorry, I encountered an error. Please try again."
+            
+            if (streamError instanceof Error) {
+              errorMessage = streamError.message
+              toast.error(errorMessage)
+            }
+            
+            setMessages((prev) =>
+              prev.map((msg) => 
+                msg.id === aiMessageId 
+                  ? { ...msg, text: errorMessage, complete: true } 
+                  : msg
+              ),
+            )
+            
+            break
           }
         }
 

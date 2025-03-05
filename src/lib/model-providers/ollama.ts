@@ -6,7 +6,7 @@ export const ollama = new Ollama({host: 'http://ollama:11434'})
 export const ollamaProvider: ModelProvider = {
   id: 'ollama',
   name: 'Ollama',
-  models: ['deepseek-r1:1.5b', 'deepseek-r1:8b', 'llama3:8b'],
+  models: [],
   
   getModels: async function(): Promise<string[] | { error: string, code: number }> {
     try {

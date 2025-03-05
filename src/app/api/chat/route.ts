@@ -21,6 +21,11 @@ export async function POST(request: NextRequest) {
     // Store file chunks to include in the response
     const fileChunks = []
 
+    // Set a longer timeout for the request
+    request.signal.onabort = () => {
+      console.log("Request was aborted by the client")
+    }
+
     if (include_files) {
       const contexts = await getRelevantContent(EMBEDDING_MODEL, messages[messages.length - 1].content)
       let fullContext = ""
@@ -51,7 +56,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: "reset" })
     }
 
-    // Create a streaming response
+    // Create a streaming response with a longer timeout
     const encoder = new TextEncoder()
     const stream = new TransformStream()
     const writer = stream.writable.getWriter()
@@ -70,33 +75,62 @@ export async function POST(request: NextRequest) {
           throw new Error("Invalid response format from provider")
         }
 
-        for await (const part of response.stream as AsyncIterable<unknown>) {
-          const processedChunk = response.processChunk(part)
-          const chunk = encoder.encode(
-            JSON.stringify({
-              content: processedChunk.content,
-              done: processedChunk.done,
-              fileChunks: processedChunk.done ? fileChunks : undefined, // Only send file chunks when done
-            }) + "\n",
-          )
-
-          await writer.write(chunk)
-
-          if (processedChunk.done) {
-            break
+        const keepAliveInterval = setInterval(async () => {
+          try {
+            // Send a keep-alive comment to prevent connection timeout
+            await writer.write(encoder.encode(": keep-alive\n\n"))
+          } catch {
+            // If writing fails, clear the interval
+            clearInterval(keepAliveInterval)
           }
+        }, 15000); // Send keep-alive every 15 seconds
+
+        try {
+          for await (const part of response.stream as AsyncIterable<unknown>) {
+            const processedChunk = response.processChunk(part)
+            const chunk = encoder.encode(
+              JSON.stringify({
+                content: processedChunk.content,
+                done: processedChunk.done,
+                fileChunks: processedChunk.done ? fileChunks : undefined, // Only send file chunks when done
+              }) + "\n",
+            )
+
+            try {
+              await writer.write(chunk)
+            } catch (writeError) {
+              console.error("Error writing to stream:", writeError)
+              clearInterval(keepAliveInterval)
+              break
+            }
+
+            if (processedChunk.done) {
+              break
+            }
+          }
+        } catch (streamError) {
+          console.error("Stream processing error:", streamError)
+          throw streamError
         }
 
+        // Clear the keep-alive interval when done
+        clearInterval(keepAliveInterval)
+
         // Signal completion
-        await writer.write(
-          encoder.encode(
-            JSON.stringify({
-              content: "",
-              done: true,
-              fileChunks, // Include file chunks in the final message
-            }) + "\n",
-          ),
-        )
+        try {
+          await writer.write(
+            encoder.encode(
+              JSON.stringify({
+                content: "",
+                done: true,
+                fileChunks, // Include file chunks in the final message
+              }) + "\n",
+            ),
+          )
+        } catch (finalWriteError) {
+          console.error("Error writing final message:", finalWriteError)
+          // We'll continue to close the writer even if this fails
+        }
       } catch (error) {
         console.error("Stream processing error:", error)
 
@@ -112,16 +146,25 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        await writer.write(
-          encoder.encode(
-            JSON.stringify({
-              error: errorMessage,
-              done: true,
-            }) + "\n",
-          ),
-        )
+        try {
+          await writer.write(
+            encoder.encode(
+              JSON.stringify({
+                error: errorMessage,
+                done: true,
+              }) + "\n",
+            ),
+          )
+        } catch (errorWriteError) {
+          console.error("Error writing error message:", errorWriteError)
+          // Continue to close the writer even if this fails
+        }
       } finally {
-        await writer.close()
+        try {
+          await writer.close()
+        } catch (closeError) {
+          console.error("Error closing writer:", closeError)
+        }
       }
     })()
 
