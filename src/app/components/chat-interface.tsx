@@ -1,4 +1,5 @@
 "use client"
+
 import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
@@ -10,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
+import { FileChunkTag } from "@/components/file-chunk-tag"
 
 type Message = {
   id: number
@@ -18,6 +20,10 @@ type Message = {
   complete?: boolean
   hasThinkContent?: boolean
   originalText?: string
+  fileChunks?: Array<{
+    filename: string
+    content: string
+  }>
 }
 
 // Add these fallback model options
@@ -108,7 +114,7 @@ export default function ChatInterface() {
     if (isInitialized) {
       scrollToBottom()
     }
-  }, [messages, isInitialized])
+  }, [isInitialized]) // Removed messages and scrollToBottom as dependencies
 
   // Function to auto-resize the textarea and adjust the chat area
   const autoResizeTextarea = () => {
@@ -264,11 +270,11 @@ export default function ChatInterface() {
       } finally {
         setIsLoadingModels(false);
       }
-    };
-    
-    fetchModels();
-  }, [selectedProvider]);
-  
+    }
+
+    fetchModels()
+  }, [selectedProvider, selectedModel]) // Added selectedModel to dependencies
+
   // Helper function to format model IDs into readable names
   const formatModelName = (modelId: string): string => {
     // Try to extract a readable name from the model ID
@@ -304,12 +310,16 @@ export default function ChatInterface() {
       }
       
       const aiMessageId = Date.now() + 1
-      setMessages(prev => [...prev, userMessage, {
-        id: aiMessageId,
-        text: "",
-        sender: "system",
-        complete: false
-      }])
+      setMessages((prev) => [
+        ...prev,
+        userMessage,
+        {
+          id: aiMessageId,
+          text: "",
+          sender: "system",
+          complete: false,
+        },
+      ])
       setInput("")
       setIsLoading(true)
       
@@ -386,34 +396,53 @@ export default function ChatInterface() {
                   const { processedText, hasThinkContent } = processThinkSections(fullResponse)
                   
                   // Update the AI message with new content
-                  setMessages(prev => prev.map(msg => 
-                    msg.id === aiMessageId 
-                      ? { 
-                          ...msg, 
-                          text: showThinking ? fullResponse : processedText,
-                          hasThinkContent,
-                          originalText: fullResponse
-                        }
-                      : msg
-                  ))
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === aiMessageId
+                        ? {
+                            ...msg,
+                            text: showThinking ? fullResponse : processedText,
+                            hasThinkContent,
+                            originalText: fullResponse,
+                          }
+                        : msg,
+                    ),
+                  )
                 }
-                
+
+                // Add file chunks if they're included in the response
+                if (data.fileChunks) {
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === aiMessageId
+                        ? {
+                            ...msg,
+                            fileChunks: data.fileChunks,
+                          }
+                        : msg,
+                    ),
+                  )
+                }
+
                 // Mark message as complete when done
                 if (data.done) {
                   // Final processing of the complete response
                   const { processedText, hasThinkContent } = processThinkSections(fullResponse)
-                  
-                  setMessages(prev => prev.map(msg => 
-                    msg.id === aiMessageId 
-                      ? { 
-                          ...msg, 
-                          text: showThinking ? fullResponse : processedText,
-                          complete: true,
-                          hasThinkContent,
-                          originalText: fullResponse
-                        }
-                      : msg
-                  ))
+
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === aiMessageId
+                        ? {
+                            ...msg,
+                            text: showThinking ? fullResponse : processedText,
+                            complete: true,
+                            hasThinkContent,
+                            originalText: fullResponse,
+                            fileChunks: data.fileChunks, // Make sure to include file chunks in the final message
+                          }
+                        : msg,
+                    ),
+                  )
                 }
               } catch (e) {
                 console.error('Error parsing stream:', e, line)
@@ -447,12 +476,10 @@ export default function ChatInterface() {
           console.log("error.message: ", error.message)
           toast.error(error.message)
         }
-        
-        setMessages(prev => prev.map(msg => 
-          msg.id === aiMessageId 
-            ? { ...msg, text: errorMessage, complete: true }
-            : msg
-        ))
+
+        setMessages((prev) =>
+          prev.map((msg) => (msg.id === aiMessageId ? { ...msg, text: errorMessage, complete: true } : msg)),
+        )
       } finally {
         setIsLoading(false)
       }
@@ -492,7 +519,17 @@ export default function ChatInterface() {
               : "bg-secondary text-secondary-foreground"
           } ${!message.complete ? "animate-pulse" : ""}`}
         >
-          {message.text || "..."}
+          <div>{message.text || "..."}</div>
+
+          {/* Display file chunks if available */}
+          {message.fileChunks && message.fileChunks.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              <div className="w-full text-xs text-muted-foreground mb-1">Referenced content:</div>
+              {message.fileChunks.map((chunk, index) => (
+                <FileChunkTag key={index} chunk={chunk} />
+              ))}
+            </div>
+          )}
         </span>
       </div>
     )

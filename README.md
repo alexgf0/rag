@@ -56,8 +56,8 @@ flowchart LR
     emb_info --> dist[pick near info embeddings<br> to query embedding]
     emb_query --> dist
 
-    dist -- get information<br>associated to embeddings  --> lm[Language model]
-    query --> lm
+    dist -- input:<br>(information from closest embeddings)  --> lm[Language model]
+    query -- input --> lm
 ```
 
 - Using the embedding model we process the document information to create embeddings that represent the information in an *n-dimensional* space.
@@ -84,4 +84,13 @@ server {
     # ...
 }
 ```
+
+## Docker credentials
+if you face something similar to the following error when trying to run `docker compose up --build -d`:
+```bash
+...
+ failed to resolve source metadata for docker.io/library/node:18-alpine: error getting credentials - err: exec: "docker-credential-desktop": executable file not found in $PATH, out: 
+...
+```
+you may want to edit the file `~/.docker/config.json` to remove the `"credStore' attribute` completely from the file.
 
